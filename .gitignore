@@ -1,0 +1,11 @@
+node_modules/
+server/data/
+server/dist/
+client/dist/
+*.log
+.DS_Store
+
+# Secrets — never commit real env files (keep the .env.example copies)
+.env
+.env.local
+.env.production

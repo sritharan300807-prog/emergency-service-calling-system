@@ -1,0 +1,33 @@
+# Render Blueprint for AutoSafe - one web service serves the built React app
+# + the API on a single permanent https:// URL (same origin, no CORS needed).
+services:
+  - type: web
+    name: autosafe
+    runtime: node
+    plan: free
+    buildCommand: cd client && npm install --include=dev && npm run build && cd ../server && npm install --include=dev && npm run build
+    startCommand: cd server && node dist/index.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: SIMULATION_MODE
+        value: "true"
+      - key: DB_FILE
+        value: ./data/emergency.db
+      - key: JWT_SECRET
+        generateValue: true
+      # Only needed if you host the frontend on Vercel/Netlify SEPARATELY.
+      # Set it to that frontend URL (comma-separate multiple). Leave as the
+      # Render URL itself for the single-URL setup below (same-origin = no CORS).
+      - key: CORS_ORIGIN
+        sync: false
+      - key: EMERGENCY_CALL_TO
+        value: +917358991015
+      # Fill these on the Render dashboard to enable REAL Twilio calls.
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
