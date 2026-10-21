@@ -23,24 +23,31 @@ const router = Router();
  * Updates the notification row matched by CallSid with the live call status.
  */
 router.post('/twilio-status', (req, res) => {
-  const expected = process.env.CALL_STATUS_TOKEN || '';
-  if (expected) {
-    const provided = (req.query.token as string) || (req.headers['x-call-token'] as string) || '';
-    if (provided !== expected) {
-      res.status(403).json({ error: 'Forbidden' });
-      return;
+  try {
+    const expected = process.env.CALL_STATUS_TOKEN || '';
+    if (expected) {
+      const provided =
+        (req.query.token as string) || (req.headers['x-call-token'] as string) || '';
+      if (provided !== expected) {
+        res.status(403).json({ error: 'Forbidden' });
+        return;
+      }
     }
-  }
-  const callSid = String(req.body.CallSid || '');
-  const callStatus = String(req.body.CallStatus || '');
-  if (callSid && callStatus) {
-    const updated = updateCallStatusBySid(callSid, callStatus);
-    if (updated) {
-      console.log(`[calls] status ${callStatus} for ${callSid.slice(0, 12)}…`);
+    const body = (req.body || {}) as Record<string, unknown>;
+    const callSid = String(body.CallSid || '');
+    const callStatus = String(body.CallStatus || '');
+    if (callSid && callStatus) {
+      const updated = updateCallStatusBySid(callSid, callStatus);
+      if (updated) {
+        console.log(`[calls] status ${callStatus} for ${callSid.slice(0, 12)}…`);
+      }
     }
+  } catch (err) {
+    // Never fail Twilio's webhook — always acknowledge with 200.
+    console.error(`[calls] twilio-status error: ${(err as Error).message}`);
   }
   // Twilio expects an XML/empty 200 response.
-  res.status(200).send('<Response></Response>');
+  res.status(200).type('text/xml').send('<Response></Response>');
 });
 
 /**

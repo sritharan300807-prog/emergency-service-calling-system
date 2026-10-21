@@ -38,6 +38,8 @@ app.use(
   })
 );
 app.use(express.json({ limit: '1mb' }));
+// Twilio StatusCallback webhooks are sent as form-urlencoded, not JSON.
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 
 // --- Real-time events via Server-Sent Events ---
 app.get('/api/events', (_req: Request, res: Response) => {
