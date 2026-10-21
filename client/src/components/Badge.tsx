@@ -1,4 +1,4 @@
-import type { IncidentStatus, NotificationStatus, Severity, Role } from '@/lib/types';
+import type { CallStatus, IncidentStatus, NotificationStatus, Severity, Role } from '@/lib/types';
 
 const statusStyles: Record<IncidentStatus, string> = {
   POSSIBLE_ACCIDENT: 'bg-amber-100 text-amber-800 border-amber-200',
@@ -66,4 +66,36 @@ export function NotificationStatusBadge({ status }: { status: NotificationStatus
 
 export function RoleBadge({ role }: { role: Role }) {
   return <Badge className={roleStyles[role]}>{role}</Badge>;
+}
+
+const callStyles: Record<CallStatus, string> = {
+  NONE: 'bg-slate-100 text-slate-600 border-slate-200',
+  QUEUED: 'bg-slate-100 text-slate-600 border-slate-200',
+  INITIATED: 'bg-blue-100 text-blue-800 border-blue-200',
+  RINGING: 'bg-amber-100 text-amber-800 border-amber-200',
+  IN_PROGRESS: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  ANSWERED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  COMPLETED: 'bg-emerald-100 text-emerald-800 border-emerald-200',
+  BUSY: 'bg-orange-100 text-orange-800 border-orange-200',
+  NO_ANSWER: 'bg-orange-100 text-orange-800 border-orange-200',
+  FAILED: 'bg-red-100 text-red-800 border-red-200',
+  CANCELED: 'bg-slate-100 text-slate-600 border-slate-200',
+};
+
+export const CALL_STATUS_LABEL: Record<CallStatus, string> = {
+  NONE: 'No call',
+  QUEUED: 'Queued',
+  INITIATED: 'Calling…',
+  RINGING: 'Ringing',
+  IN_PROGRESS: 'In progress',
+  ANSWERED: 'Answered',
+  COMPLETED: 'Call completed',
+  BUSY: 'Busy',
+  NO_ANSWER: 'No answer',
+  FAILED: 'Call failed',
+  CANCELED: 'Cancelled',
+};
+
+export function CallStatusBadge({ status }: { status: CallStatus }) {
+  return <Badge className={callStyles[status]}>{CALL_STATUS_LABEL[status]}</Badge>;
 }

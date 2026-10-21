@@ -1,16 +1,22 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, MapPin, Bell, Navigation } from 'lucide-react';
+import { ArrowLeft, MapPin, Bell, Navigation, Phone, ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Incident, Notification } from '@/lib/types';
 import {
   IncidentStatusBadge,
   SeverityBadge,
   NotificationStatusBadge,
+  CallStatusBadge,
 } from '@/components/Badge';
 import { LoadingSpinner, ErrorState } from '@/components/StateViews';
 import { MapView } from '@/components/MapView';
 import { formatDate, formatTime } from '@/lib/format';
+
+/** Google Maps directions link for a coordinate pair (never invented). */
+function mapsLink(lat: number, lng: number): string {
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+}
 
 export function IncidentDetailPage() {
   const { id } = useParams();
@@ -85,9 +91,25 @@ export function IncidentDetailPage() {
                 <Navigation className="h-4 w-4 text-slate-400" /> {incident.address}
               </div>
             )}
+            <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 px-5 py-3">
+              <a
+                href={mapsLink(incident.latitude, incident.longitude)}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-secondary"
+              >
+                <ExternalLink className="h-4 w-4" /> Open in Google Maps
+              </a>
+              <span className="text-xs text-slate-400">
+                Real GPS coordinates — no simulated location.
+              </span>
+            </div>
           </div>
         ) : (
-          <div className="card p-5 lg:col-span-2 text-sm text-slate-500">No location recorded.</div>
+          <div className="card p-5 lg:col-span-2 text-sm text-slate-500">
+            No GPS location recorded. The system never invents a location — the alert states
+            that coordinates were unavailable.
+          </div>
         )}
 
         {/* Notifications */}
@@ -107,16 +129,44 @@ export function IncidentDetailPage() {
               notifications.map((n) => (
                 <div key={n.id} className="px-5 py-3">
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-800">{n.recipient}</span>
+                    <span className="flex items-center gap-1.5 font-semibold text-slate-800">
+                      {n.notificationType === 'VOICE_CALL' && (
+                        <Phone className="h-3.5 w-3.5 text-brand-600" />
+                      )}
+                      {n.recipient}
+                    </span>
                     <span className="text-[10px] font-bold uppercase text-slate-400">
                       {n.notificationType.replace('_', ' ')}
                     </span>
                   </div>
-                  <div className="mt-1">
+                  <div className="mt-1 flex flex-wrap items-center gap-1.5">
                     <NotificationStatusBadge status={n.status} />
+                    {n.notificationType === 'VOICE_CALL' && n.callStatus && (
+                      <CallStatusBadge status={n.callStatus} />
+                    )}
+                    {n.channel === 'TWILIO' && (
+                      <span className="rounded-full border border-brand-200 bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase text-brand-700">
+                        Real call
+                      </span>
+                    )}
+                    {n.channel === 'DEMO' && n.notificationType === 'VOICE_CALL' && (
+                      <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase text-slate-500">
+                        Simulated
+                      </span>
+                    )}
+                    {typeof n.attempts === 'number' && n.attempts > 1 && (
+                      <span className="text-[10px] font-semibold text-slate-400">
+                        attempt {n.attempts}
+                      </span>
+                    )}
                   </div>
                   {n.sentAt && (
                     <p className="mt-1 text-[11px] text-slate-400">{formatTime(n.sentAt)}</p>
+                  )}
+                  {n.callSid && (
+                    <p className="mt-0.5 truncate font-mono text-[10px] text-slate-300">
+                      {n.callSid}
+                    </p>
                   )}
                 </div>
               ))

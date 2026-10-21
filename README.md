@@ -249,6 +249,129 @@ is clearly labeled **"Demo / Simulation Mode"**. A real top-level API/notificati
 (SMS gateway, Twilio, push, etc.) can be added behind the same interface without changing the
 frontend.
 
+---
+
+## 11b. REAL Emergency Phone Calls (Twilio Programmable Voice)
+
+> **Status honesty:** the code path is fully implemented and verified to *dispatch*
+> concurrent calls with the correct Tamil + English message. Whether calls **actually ring**
+> depends on **your** Twilio account, a **verified caller ID / owned number**, and **credit**.
+> Nothing here claims calls work until you test them end-to-end (see below).
+
+When a genuine accident is confirmed, the system places **real outbound calls concurrently**
+to every configured emergency contact:
+
+| Default contacts |
+| --- |
+| `+917358991015` |
+| `+918248319996` |
+| `+918754932145` |
+
+### What each answered call says (AI TTS via Twilio `<Say>`)
+
+- **Tamil first, then English** (configurable: `ta-en` | `ta` | `en`).
+- Tamil uses the neural voice **`Polly.Aditi`** with `language="ta-IN"`.
+- Includes the **real GPS coordinates**, a **reverse-geocoded address** (when available), and a
+  **Google Maps link** spoken aloud.
+- **If GPS is missing, it says the location is unavailable — it never invents one.**
+
+Example (English portion):
+
+> Emergency alert! A car accident has been detected. The accident is near
+> [address]. Coordinates [lat, lng]. A Google Maps link has been sent.
+> https://www.google.com/maps/search/?api=1&query=[lat],[lng]
+> Please contact the emergency team immediately. I repeat, a car accident has been detected.
+
+### Call status tracking
+
+Each call is tracked through its lifecycle using Twilio **StatusCallback**:
+
+`QUEUED → INITIATED → RINGING → ANSWERED → COMPLETED` (or `FAILED` / `BUSY` / `NO_ANSWER` / `CANCELED`).
+
+- Live status is streamed to the dashboard over **SSE** and shown per contact on the
+  incident detail page (with the Twilio CallSid and attempt count).
+- **Requires `PUBLIC_BASE_URL`** to be a public HTTPS URL so Twilio can reach
+  `POST /api/calls/twilio-status`.
+
+### Retry & duplicate protection
+
+- **Failed calls are retried** up to `CALL_MAX_RETRIES` extra times, spaced by
+  `CALL_RETRY_DELAY_MS` (default: 1 retry after 15 s).
+- **Duplicate prevention:** if the same incident already has active real calls, the
+  notification service will **not re-dial** (dedup guard keyed on incident + call status);
+  the IoT path also dedups on an already-active incident for the vehicle.
+
+### TEST MODE (verify without a real emergency)
+
+Set `EMERGENCY_TEST_MODE=true` on the server. Then `POST /api/calls/test` (ADMIN) places a
+**real call that is clearly labelled as a test** ("This is a TEST…"), so you can confirm your
+phone rings and the Tamil/English voice plays. Test mode **never** dials emergency services.
+You can also preview the exact spoken message **without any credentials** via
+`POST /api/calls/preview-twiml`.
+
+> During development we do **not** call emergency services (100/108/112). Test numbers only.
+
+### Twilio account setup (step by step)
+
+1. **Create an account** at <https://www.twilio.com/try-twilio> (trial gives free credit).
+2. From the **Console → Account Info**, copy the **Account SID** and **Auth Token**.
+3. **Buy/own a voice-capable number** (Console → Phone Numbers). For **India**, outbound
+   from a Twilio number or a **verified caller ID** is required.
+4. **Verify your own phone** (Trial accounts can only call **verified** numbers — add all
+   three contacts under **Verified Caller IDs** while testing).
+5. **Add credit** — trial credit is limited; production calls are **paid**
+   (per-minute + a **premium surcharge** for neural `Polly.Aditi` / `ta-IN` TTS).
+6. Set the env vars in `server/.env` (never in the frontend):
+
+   ```env
+   TWILIO_ACCOUNT_SID=ACxxxxxxxx
+   TWILIO_AUTH_TOKEN=xxxxxxxx
+   TWILIO_FROM_NUMBER=+1XXXXXXXXXX
+   EMERGENCY_CONTACTS=+917358991015,+918248319996,+918754932145
+   PUBLIC_BASE_URL=https://your-deployed-url
+   CALL_LANGUAGE=ta-en
+   ```
+
+### Indian telecom / regulatory notes
+
+- **Outbound automated calls to Indian mobiles** are subject to **TRAI** rules; promotional
+  auto-calls are restricted, but **transactional/emergency** calls are permitted with clear
+  consent. Prefer a provider with **DLT / Indian number** support for production.
+- **Twilio in India:** Twilio supports outbound calls to India; a **verified caller ID** and
+  account credit are required. Indian **DND (Do Not Disturb)** registration can affect some
+  numbers — test each contact.
+- **Alternatives** for Indian telephony: Exotel, Plivo, Knowlarity, or an on-prem **GSM
+  gateway** (SIM800L/SIM7600) driven by the ESP32 for true offline calling.
+- **Privacy:** the spoken message contains an accident location — obtain clear consent from
+  the people who will receive these calls.
+
+### Enabling real calls (deployment)
+
+1. Deploy the app (see §17 for the permanent public URL).
+2. Set `PUBLIC_BASE_URL` to that URL (enables status callbacks).
+3. Add the Twilio env vars in the host's dashboard (Render → Environment).
+4. Set `EMERGENCY_TEST_MODE=true` and run `POST /api/calls/test` to confirm a phone rings.
+5. Turn test mode **off** for live operation.
+
+---
+
+## 11c. Sensor + GPS integration
+
+The **`POST /api/iot/telemetry`** endpoint is the secure entry point for hardware:
+
+- Authenticate with the **`X-API-Key`** header (= `IOT_API_KEY`). Always set this in production.
+- Send acceleration, speed, orientation, **real GPS latitude/longitude**, and a timestamp.
+- The server runs the **detection engine**, stores the **sensor event + coordinates + time**,
+  updates the vehicle's live location, and (only for a detected accident, and only once per
+  active incident) starts the incident + call workflow.
+
+Rules enforced by design:
+
+- **Real coordinates only** — if latitude/longitude are absent, the incident has **no
+  location** and the voice message states that; a location is **never fabricated**.
+- **No duplicate calls** from repeated sensor readings (dedup on active incident + active call).
+
+
 ## 12. Future ESP32 / IoT Integration
 
 The **modular `IoT API` path** (`server/src/routes/iot.ts`) is the intended entry point for
@@ -285,6 +408,7 @@ from the simulator or a real device.
 | Location    | `GET/PUT /location/:vehicleId`                                                              |
 | QR          | `GET /qr/:vehicleId`, `POST /qr/validate`                                                   |
 | Notify      | `GET /notifications?incidentId=`, `POST /notifications/:id/acknowledge`, `POST /notifications/trigger` |
+| Calls       | `GET /calls/config`, `POST /calls/test` (admin, test mode), `POST /calls/preview-twiml`, `POST /calls/dispatch` (admin), `POST /calls/twilio-status` (Twilio webhook) |
 | IoT         | `POST /iot/telemetry`, `GET /iot/status`                                                    |
 | Dashboard   | `GET /dashboard/stats`                                                                      |
 | Settings    | `GET/PUT /settings` (admin)                                                                 |
@@ -293,11 +417,15 @@ from the simulator or a real device.
 ## 14. Safety & Development Notes
 
 - **No false claims of real dispatch** — the app only triggers a clearly-labeled
-  **"Configured Emergency Response Workflow (Demo/Simulation Mode)"**.
+  **"Configured Emergency Response Workflow"**. When Twilio is configured, REAL calls are placed;
+  otherwise everything is marked **DEMO**.
+- **Real locations only** — GPS coordinates come from the device; if unavailable, the system
+  states so and never invents a location.
+- **No emergency-service calls during development** — test mode dials only your own numbers.
 - **Data protection** — emergency contacts and sensitive owner info are **not** exposed through
   QR scanning; RBAC protects private data.
 - **Input validation** on all API bodies; graceful error/empty/loading states across the UI.
-- **Secrets** are loaded from environment variables and never hardcoded.
+- **Secrets** are loaded from environment variables and never hardcoded or sent to the browser.
 
 ## 15. Running Tests
 
@@ -309,13 +437,56 @@ cd server && npm run dev        # start the API
 node <path-to>/api-test.mjs      # run the flow test against :4000
 ```
 
+Safe call checks that need **no credentials**:
+
+```bash
+# Preview the exact Tamil + English spoken message (with real coords):
+curl -X POST http://localhost:4000/api/calls/preview-twiml \
+  -H "Authorization: Bearer <TOKEN>" -H "Content-Type: application/json" \
+  -d '{"latitude":13.0827,"longitude":80.2707,"address":"Chennai, India"}'
+
+# Show whether real calling is enabled (DEMO / TEST / LIVE):
+curl http://localhost:4000/api/calls/config -H "Authorization: Bearer <TOKEN>"
+```
+
 ## 16. Future Improvements
 
 - Swap SQLite → PostgreSQL via the isolated persistence layer.
-- Real SMS / email / voice gateway providers behind the notification interface.
+- Real SMS / email / push gateway providers behind the notification interface.
 - Historical analytics / charts for incidents and response times.
 - Code-split the client bundle (Leaflet + html5-qrcode) to reduce initial chunk size.
 - WebSocket fallback if long-lived SSE is unsuitable in some deployments.
+
+## 17. Deployment — permanent public URL
+
+The project deploys as **one Node service that serves both the API and the built web app** on a
+single permanent HTTPS URL. This is why **GitHub Pages / Netlify alone are NOT suitable** (they
+are static-only and cannot run the Express server, WebSocket/SSE, or SQLite).
+
+**Recommended: Render** (free tier, supports a real Node backend + persistent-ish disk):
+
+1. Push this repo to GitHub.
+2. On Render, choose **New → Blueprint** and select the repo — it reads `render.yaml`.
+3. Set the environment variables (Render → Environment):
+   `EMERGENCY_CONTACTS`, `TWILIO_*`, `PUBLIC_BASE_URL` (= the Render URL), `IOT_API_KEY`,
+   `EMERGENCY_TEST_MODE`. `JWT_SECRET` is generated automatically.
+4. Deploy. Render builds (`client` then `server`) and serves everything on one HTTPS URL,
+   reachable from **any Android/iPhone/laptop**.
+
+**Why not GitHub Pages/Netlify:** they host static files only. The frontend calls a live API
+(`/api/*`, SSE stream), which needs a server process and a database — Render (or Railway/Fly/
+a VPS) supports that; static hosts do not.
+
+**Staying online after you close your laptop:** Render runs on their servers, independent of your
+machine. (Free web services sleep after ~15 min idle and wake on the first request.)
+
+**Updating the site:** commit and push to the connected branch; Render auto-redeploys.
+
+**Responsiveness:** the UI uses Tailwind responsive classes and a mobile viewport meta tag, so it
+works on all screen sizes and supports "Add to Home Screen" on iOS/Android.
+
+**Secrets:** all credentials live in the host's environment settings (Render dashboard), never in
+the repo. `.env` is git-ignored; only `.env.example` is committed.
 
 ---
 

@@ -25,6 +25,23 @@ export type NotificationStatus =
   | 'FAILED'
   | 'ACKNOWLEDGED';
 
+/**
+ * Lifecycle of a REAL outgoing phone call as reported by the telephony provider
+ * (Twilio). 'NONE' means no real call was attempted (demo/simulated).
+ */
+export type CallStatus =
+  | 'NONE'
+  | 'QUEUED'
+  | 'INITIATED'
+  | 'RINGING'
+  | 'IN_PROGRESS'
+  | 'ANSWERED'
+  | 'COMPLETED'
+  | 'BUSY'
+  | 'NO_ANSWER'
+  | 'FAILED'
+  | 'CANCELED';
+
 export interface AuthUser {
   id: string;
   name: string;

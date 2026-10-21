@@ -19,6 +19,7 @@ import notificationRoutes from './routes/notifications.js';
 import iotRoutes from './routes/iot.js';
 import dashboardRoutes from './routes/dashboard.js';
 import settingsRoutes from './routes/settings.js';
+import callRoutes from './routes/calls.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -77,6 +78,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/iot', iotRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/calls', callRoutes);
 
 // --- Serve the built React client (production build) ---
 app.use(express.static(clientDist));

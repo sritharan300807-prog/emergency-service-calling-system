@@ -122,6 +122,31 @@ export function initializeDb(): void {
     CREATE INDEX IF NOT EXISTS idx_sensor_vehicle ON sensor_events(vehicle_id);
     CREATE INDEX IF NOT EXISTS idx_notification_incident ON notifications(incident_id);
   `);
+
+  runMigrations();
+}
+
+/**
+ * Additive, idempotent migrations. Each statement is guarded so it can run
+ * against an existing database without losing data.
+ */
+function runMigrations(): void {
+  const columns = db
+    .prepare('PRAGMA table_info(notifications)')
+    .all() as { name: string }[];
+  const has = (name: string) => columns.some((c) => c.name === name);
+
+  // REAL call tracking columns (added for Twilio outbound-call support).
+  if (!has('call_sid')) db.exec('ALTER TABLE notifications ADD COLUMN call_sid TEXT');
+  if (!has('call_status'))
+    db.exec("ALTER TABLE notifications ADD COLUMN call_status TEXT DEFAULT 'NONE'");
+  if (!has('attempts'))
+    db.exec('ALTER TABLE notifications ADD COLUMN attempts INTEGER NOT NULL DEFAULT 0');
+  if (!has('updated_at')) db.exec('ALTER TABLE notifications ADD COLUMN updated_at TEXT');
+
+  db.exec(
+    'CREATE INDEX IF NOT EXISTS idx_notification_call_sid ON notifications(call_sid)'
+  );
 }
 
 export function getSetting(key: string): string | null {

@@ -20,6 +20,30 @@ export type Severity = 'LOW' | 'MODERATE' | 'SEVERE' | 'CRITICAL';
 export type NotificationType = 'SMS' | 'APP_PUSH' | 'VOICE_CALL';
 export type NotificationStatus = 'PENDING' | 'SENT' | 'DELIVERED' | 'FAILED' | 'ACKNOWLEDGED';
 
+export type CallStatus =
+  | 'NONE'
+  | 'QUEUED'
+  | 'INITIATED'
+  | 'RINGING'
+  | 'IN_PROGRESS'
+  | 'ANSWERED'
+  | 'COMPLETED'
+  | 'BUSY'
+  | 'NO_ANSWER'
+  | 'FAILED'
+  | 'CANCELED';
+
+export interface CallConfig {
+  twilioConfigured: boolean;
+  testMode: boolean;
+  language: 'ta-en' | 'en' | 'ta';
+  maxRetries: number;
+  retryDelayMs: number;
+  statusCallbacks: boolean;
+  emergencyContacts: string[];
+  mode: 'TEST' | 'LIVE' | 'DEMO';
+}
+
 export interface User {
   id: string;
   name: string;
@@ -84,6 +108,9 @@ export interface Notification {
   channel: string;
   message: string | null;
   sentAt: string | null;
+  callSid?: string | null;
+  callStatus?: CallStatus;
+  attempts?: number;
 }
 
 export interface DashboardStats {

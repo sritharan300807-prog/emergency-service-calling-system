@@ -14,7 +14,7 @@ import {
   PhoneCall,
 } from 'lucide-react';
 import { api } from '@/lib/api';
-import type { DashboardStats, Vehicle } from '@/lib/types';
+import type { CallConfig, DashboardStats, Vehicle } from '@/lib/types';
 import { StatCard } from '@/components/StatCard';
 import { LoadingSpinner, ErrorState, EmptyState } from '@/components/StateViews';
 import { IncidentStatusBadge, SeverityBadge } from '@/components/Badge';
@@ -30,6 +30,7 @@ export function DashboardPage() {
   const { activeIncidents, countdowns, refresh } = useLiveEmergency();
   const [data, setData] = useState<DashboardStats | null>(null);
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [callConfig, setCallConfig] = useState<CallConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -40,12 +41,14 @@ export function DashboardPage() {
 
   const load = async () => {
     try {
-      const [stats, veh] = await Promise.all([
+      const [stats, veh, cfg] = await Promise.all([
         api<DashboardStats>('/api/dashboard/stats'),
         api<{ vehicles: Vehicle[] }>('/api/vehicles'),
+        api<CallConfig>('/api/calls/config').catch(() => null),
       ]);
       setData(stats);
       setVehicles(veh.vehicles);
+      setCallConfig(cfg);
       setError('');
     } catch (e) {
       setError((e as Error).message);
@@ -106,6 +109,9 @@ export function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Call system mode banner */}
+      {callConfig && <CallModeBanner config={callConfig} />}
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -314,6 +320,66 @@ export function DashboardPage() {
               </button>
             ))}
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Shows whether REAL emergency calls are enabled. Honest by design: it never
+ * claims calls work unless Twilio is configured, and clearly flags TEST MODE.
+ */
+function CallModeBanner({ config }: { config: CallConfig }) {
+  const tone =
+    config.mode === 'LIVE'
+      ? 'border-emerald-300 bg-emerald-50'
+      : config.mode === 'TEST'
+        ? 'border-amber-300 bg-amber-50'
+        : 'border-slate-300 bg-slate-50';
+  const dot =
+    config.mode === 'LIVE'
+      ? 'bg-emerald-500'
+      : config.mode === 'TEST'
+        ? 'bg-amber-500'
+        : 'bg-slate-400';
+  const title =
+    config.mode === 'LIVE'
+      ? 'Real emergency calls ENABLED'
+      : config.mode === 'TEST'
+        ? 'TEST MODE — calls are labelled test messages'
+        : 'Demo mode — no real calls will be placed';
+  const detail =
+    config.mode === 'DEMO'
+      ? 'Twilio credentials are not set on the server, so voice calls are simulated. Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER to enable real calls.'
+      : `${config.emergencyContacts.length} emergency contact(s) will be dialed concurrently. Language: ${config.language}. Retries: ${config.maxRetries}.`;
+
+  return (
+    <div className={`rounded-2xl border ${tone} p-4`}>
+      <div className="flex items-start gap-3">
+        <span className="mt-4 flex h-2.5 w-2.5 shrink-0 rounded-full">
+          <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
+        </span>
+        <PhoneCall className="h-5 w-5 text-slate-600" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-bold text-slate-800">{title}</p>
+          <p className="mt-0.5 text-xs text-slate-600">{detail}</p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {config.emergencyContacts.map((n) => (
+              <span
+                key={n}
+                className="rounded-full border border-slate-200 bg-white px-2 py-0.5 font-mono text-[11px] text-slate-600"
+              >
+                {n}
+              </span>
+            ))}
+          </div>
+          {!config.statusCallbacks && config.mode !== 'DEMO' && (
+            <p className="mt-1 text-[11px] text-amber-700">
+              Set PUBLIC_BASE_URL on the server to receive live call-status callbacks
+              (initiated → ringing → answered → completed).
+            </p>
+          )}
         </div>
       </div>
     </div>

@@ -69,6 +69,10 @@ export function seedIfEmpty(): void {
   insertContact.run(uid(), vehicleId, 'Priya Sharma', 'Spouse', '+91 91234 56789', 1, now);
   insertContact.run(uid(), vehicleId, 'Rahul Sharma', 'Brother', '+91 99887 76655', 2, now);
   insertContact.run(uid(), vehicleId, 'Meera Sharma', 'Mother', '+91 98998 87766', 3, now);
+  // The three real emergency numbers configured for this deployment.
+  insertContact.run(uid(), vehicleId, 'Primary Emergency', 'Primary', '+917358991015', 4, now);
+  insertContact.run(uid(), vehicleId, 'Emergency Contact 2', 'Secondary', '+918248319996', 5, now);
+  insertContact.run(uid(), vehicleId, 'Emergency Contact 3', 'Tertiary', '+918754932145', 6, now);
 
   // Default system setting (matches config default).
   setSetting('falseAlarmCountdownSeconds', String(config.app.defaultCountdownSeconds));
